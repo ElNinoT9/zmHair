@@ -28,7 +28,7 @@ def seed_barbers(db: Session):
         legacy.is_barber = False
 
 
-def seed_database(db: Session):
+def seed_database(db: Session, *, light: bool = False):
     if not db.query(User).filter_by(role='admin').first():
         admin = User(employee_id='admin', name='系统管理员', role='admin')
         admin.set_password('admin123')
@@ -44,7 +44,7 @@ def seed_database(db: Session):
         if not db.query(SystemConfig).filter_by(config_key=key).first():
             db.add(SystemConfig(config_key=key, config_value=value, description=desc))
 
-    if db.query(User).filter(User.role == 'employee').count() == 0:
+    if not light and db.query(User).filter(User.role == 'employee').count() == 0:
         seed_employees_from_zmhr(db)
     seed_barbers(db)
 

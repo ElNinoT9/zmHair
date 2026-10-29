@@ -1,4 +1,4 @@
-"""轻量 /health：不加载 FastAPI，避免 504。"""
+"""轻量 /health：不 import FastAPI，避免 30s 超时。"""
 import json
 
 from http.server import BaseHTTPRequestHandler
@@ -10,10 +10,15 @@ class handler(BaseHTTPRequestHandler):
             {
                 "status": "ok",
                 "service": "zmhair",
-                "note": "数据库状态见登录后业务；完整 storage 字段见 FastAPI 就绪后 /api 路由",
-            }
+                "storage": {
+                    "engine": "postgresql",
+                    "persistent": True,
+                    "note": "Neon 持久化；员工数据需本机脚本导入一次",
+                },
+            },
+            ensure_ascii=False,
         )
         self.send_response(200)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.end_headers()
         self.wfile.write(body.encode())

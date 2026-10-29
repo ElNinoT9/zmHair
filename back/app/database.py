@@ -21,6 +21,10 @@ class Base(DeclarativeBase):
 
 
 def get_db():
+    if settings.is_vercel:
+        from app.bootstrap import ensure_bootstrapped
+
+        ensure_bootstrapped()
     db = SessionLocal()
     try:
         yield db
