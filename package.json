@@ -1,0 +1,11 @@
+{
+  "name": "zmhair",
+  "private": true,
+  "scripts": {
+    "build": "cd front && npm install && npm run build",
+    "vercel-build": "cd front && npm install && npm run build"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

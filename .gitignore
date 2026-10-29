@@ -1,0 +1,8 @@
+.vercel
+front/node_modules
+back/venv
+back/zmhair.db
+back/.env
+__pycache__
+*.pyc
+.DS_Store

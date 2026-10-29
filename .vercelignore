@@ -1,0 +1,8 @@
+back/venv
+back/__pycache__
+back/**/__pycache__
+back/.env
+back/zmhair.db
+front/node_modules
+.git
+.DS_Store
