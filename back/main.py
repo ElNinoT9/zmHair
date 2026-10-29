@@ -35,18 +35,26 @@ def _run_seed():
         db.close()
 
 
+def _vercel_bootstrap():
+    try:
+        Base.metadata.create_all(bind=engine)
+        run_migrations()
+        _run_seed()
+    except Exception:
+        logger.exception('vercel bootstrap failed')
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.is_vercel and settings.is_sqlite:
         raise RuntimeError(
             'Vercel 上 SQLite 无法持久化，请在 Vercel 环境变量中设置 DATABASE_URL（PostgreSQL，如 Neon）'
         )
-    Base.metadata.create_all(bind=engine)
-    run_migrations()
     if settings.is_vercel:
-        # 冷启动：先放行 /health，种子数据后台写入，避免 FUNCTION_INVOCATION_TIMEOUT
-        threading.Thread(target=_run_seed, daemon=True).start()
+        threading.Thread(target=_vercel_bootstrap, daemon=True).start()
     else:
+        Base.metadata.create_all(bind=engine)
+        run_migrations()
         db = SessionLocal()
         try:
             seed_database(db)
