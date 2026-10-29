@@ -6,6 +6,6 @@
     "vercel-build": "cd front && npm install && npm run build"
   },
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   }
 }
