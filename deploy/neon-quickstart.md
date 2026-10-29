@@ -33,10 +33,17 @@ Neon 上复制好连接串后，打开 **Vercel**（vercel.com）→ 你的 **zm
 
 ## 第三步：部署
 
+**先核对 Vercel 控制台** → [VERCEL_BUILD_SETTINGS.md](./VERCEL_BUILD_SETTINGS.md)（Framework 选 **Other**，Output 为 **`front/dist` 或与 vercel.json 一致**）。
+
 ```bash
 cd /Users/Zhou/w/work/code/zmHairV
+git push origin main   # 已连 GitHub 时 push 即触发部署
+```
+
+或本地 CLI：
+
+```bash
 vercel login
-vercel          # 首次关联项目，Root 选 zmHairV 目录
 vercel --prod
 ```
 
