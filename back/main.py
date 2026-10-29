@@ -7,6 +7,8 @@
 """
 
 from contextlib import asynccontextmanager
+import logging
+import threading
 
 import uvicorn
 from fastapi import FastAPI
@@ -20,6 +22,18 @@ from app.init_data import seed_database
 from app.routers import api_router
 from app.utils.response import ApiException
 
+logger = logging.getLogger(__name__)
+
+
+def _run_seed():
+    db = SessionLocal()
+    try:
+        seed_database(db)
+    except Exception:
+        logger.exception('seed_database failed')
+    finally:
+        db.close()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,11 +43,15 @@ async def lifespan(app: FastAPI):
         )
     Base.metadata.create_all(bind=engine)
     run_migrations()
-    db = SessionLocal()
-    try:
-        seed_database(db)
-    finally:
-        db.close()
+    if settings.is_vercel:
+        # 冷启动：先放行 /health，种子数据后台写入，避免 FUNCTION_INVOCATION_TIMEOUT
+        threading.Thread(target=_run_seed, daemon=True).start()
+    else:
+        db = SessionLocal()
+        try:
+            seed_database(db)
+        finally:
+            db.close()
     yield
 
 

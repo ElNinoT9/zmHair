@@ -6,7 +6,12 @@ from pydantic_settings import BaseSettings
 
 def _normalize_database_url(url: str) -> str:
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
+        url = url.replace("postgres://", "postgresql://", 1)
+    # Neon 复制串常带 channel_binding=require，在 Vercel/psycopg2 下易连库卡死
+    for fragment in ("&channel_binding=require", "?channel_binding=require&", "?channel_binding=require"):
+        url = url.replace(fragment, "?" if fragment.startswith("?") else "")
+    if url.endswith("?"):
+        url = url[:-1]
     return url
 
 

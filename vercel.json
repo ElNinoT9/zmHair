@@ -14,7 +14,7 @@
   "functions": {
     "api/**/*.py": {
       "memory": 1024,
-      "maxDuration": 30,
+      "maxDuration": 60,
       "excludeFiles": "back/venv/**,front/node_modules/**,**/__pycache__/**,**/*.pyc,back/zmhair.db"
     }
   }

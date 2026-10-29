@@ -9,8 +9,7 @@ if settings.is_sqlite:
     connect_args = {"check_same_thread": False}
     engine = create_engine(db_url, connect_args=connect_args)
 else:
-    # Serverless（如 Vercel）不宜长连接池
-    connect_args = {}
+    connect_args = {"connect_timeout": 10}
     pool_kwargs = {"poolclass": NullPool} if settings.is_vercel else {}
     engine = create_engine(db_url, connect_args=connect_args, **pool_kwargs)
 

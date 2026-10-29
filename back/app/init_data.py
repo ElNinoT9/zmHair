@@ -44,7 +44,8 @@ def seed_database(db: Session):
         if not db.query(SystemConfig).filter_by(config_key=key).first():
             db.add(SystemConfig(config_key=key, config_value=value, description=desc))
 
-    seed_employees_from_zmhr(db)
+    if db.query(User).filter(User.role == 'employee').count() == 0:
+        seed_employees_from_zmhr(db)
     seed_barbers(db)
 
     db.commit()
