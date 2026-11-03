@@ -9,7 +9,7 @@
       <template v-else>
         <div class="login-logo">
           <van-icon name="smile-o" size="48" color="#409EFF" />
-          <h2>理发预约</h2>
+          <h2>卢安夏剪约</h2>
           <p>输入工号即可使用，无需密码</p>
         </div>
         <van-form @submit="handleLogin">
@@ -34,7 +34,7 @@
             </van-button>
           </div>
         </van-form>
-        <div class="login-tip">首次输入工号后会记住，下次打开自动登录</div>
+        <!-- <div class="login-tip">首次输入工号后会记住，下次打开自动登录</div> -->
       </template>
     </div>
   </div>

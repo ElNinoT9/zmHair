@@ -30,7 +30,7 @@ def _database_url_from_env() -> str | None:
 
 
 class Settings(BaseSettings):
-    app_name: str = "企业内部理发预约系统"
+    app_name: str = "卢安夏剪约"
     secret_key: str = "zmhair-dev-secret-change-in-production"
     jwt_expire_hours: int = 72
     database_url: str = "sqlite:///./zmhair.db"

@@ -1,6 +1,6 @@
-# 企业内部理发预约管理系统
+# 卢安夏剪约
 
-前后端分离：Vue 2 + Element UI / Vant + FastAPI + SQLite
+中色卢安夏铜业有限公司 · 员工理发预约（前后端分离）
 
 ```
 zmHair/

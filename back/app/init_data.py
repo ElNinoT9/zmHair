@@ -35,7 +35,7 @@ def seed_database(db: Session, *, light: bool = False):
         db.add(admin)
 
     default_configs = [
-        ('system_name', '企业内部理发预约系统', '系统名称'),
+        ('system_name', '卢安夏剪约', '系统名称'),
         ('schedule_min_days', '7', '理发师排班最少提前天数'),
         ('schedule_max_days', '14', '理发师排班最多提前天数'),
         ('company_name', '公司名称', '公司名称'),

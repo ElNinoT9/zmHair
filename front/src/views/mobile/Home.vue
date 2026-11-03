@@ -1,7 +1,7 @@
 <template>
   <div class="mobile-home">
     <div class="home-header">
-      <div class="greeting">欢迎使用理发预约</div>
+      <div class="greeting">欢迎使用卢安夏剪约</div>
       <div class="sub">选择理发师和日期即可预约</div>
     </div>
 

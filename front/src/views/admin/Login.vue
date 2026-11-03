@@ -2,8 +2,8 @@
   <div class="admin-login">
     <div class="login-card">
       <div class="login-header">
-        <h2>理发预约管理系统</h2>
-        <p>管理后台</p>
+        <h2>卢安夏剪约</h2>
+        <p class="subtitle">管理后台</p>
       </div>
       <el-form ref="form" :model="form" :rules="rules" @submit.native.prevent="handleLogin">
         <el-form-item prop="employee_id">

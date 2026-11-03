@@ -42,13 +42,13 @@ def create_app() -> FastAPI:
     if settings.is_vercel:
         application = FastAPI(
             title=settings.app_name,
-            description='企业内部理发预约管理系统 API',
+            description='卢安夏剪约 API',
             version='1.0.0',
         )
     else:
         application = FastAPI(
             title=settings.app_name,
-            description='企业内部理发预约管理系统 API',
+            description='卢安夏剪约 API',
             version='1.0.0',
             lifespan=lifespan,
         )

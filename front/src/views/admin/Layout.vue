@@ -3,7 +3,7 @@
     <el-aside width="220px" class="sidebar">
       <div class="logo">
         <i class="el-icon-scissors"></i>
-        <span>理发预约系统</span>
+        <span>卢安夏剪约</span>
       </div>
       <el-menu :default-active="$route.path" router background-color="#304156" text-color="#bfcbd9" active-text-color="#409EFF">
         <el-menu-item index="/admin/dashboard"><i class="el-icon-s-home"></i><span>工作台</span></el-menu-item>

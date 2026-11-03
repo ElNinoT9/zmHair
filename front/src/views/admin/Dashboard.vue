@@ -9,7 +9,7 @@
       </el-col>
     </el-row>
     <div class="card welcome-card">
-      <h3>欢迎使用企业内部理发预约管理系统</h3>
+      <h3>欢迎使用卢安夏剪约</h3>
       <p>您可以在此管理员工账号、查看预约台账、导出报表及配置系统参数。</p>
       <el-row :gutter="16" style="margin-top:20px">
         <el-col :span="8"><el-button type="primary" plain icon="el-icon-user" @click="$router.push('/admin/users')">用户管理</el-button></el-col>
