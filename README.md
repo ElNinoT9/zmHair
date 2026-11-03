@@ -64,7 +64,7 @@ SECRET_KEY=your-secret-key
 
 ## 生产部署（单域名）
 
-域名：**http://hair.cnmc-clm.com.cn**
+域名：**http://**hair**.cnmc-clm.com.cn**
 
 | 入口 | 地址 |
 |------|------|

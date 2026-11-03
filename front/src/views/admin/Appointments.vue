@@ -1,7 +1,7 @@
 <template>
   <div class="appointments-page">
     <div class="card toolbar">
-      <el-form inline @submit.native.prevent="loadData">
+      <el-form inline @submit.native.prevent="handleSearch">
         <el-form-item>
           <el-input v-model="query.keyword" placeholder="搜索预约人" clearable style="width:160px" />
         </el-form-item>
@@ -17,7 +17,7 @@
           <el-date-picker v-model="dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="yyyy-MM-dd" style="width:260px" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" icon="el-icon-search" @click="loadData">查询</el-button>
+          <el-button type="primary" icon="el-icon-search" @click="handleSearch">查询</el-button>
           <el-button type="success" icon="el-icon-download" @click="handleExport">导出 Excel</el-button>
         </el-form-item>
       </el-form>
@@ -40,11 +40,13 @@
       </el-table>
       <el-pagination
         style="margin-top:16px;text-align:right"
-        @current-change="p => { query.page = p; loadData() }"
+        @size-change="handleSizeChange"
+        @current-change="handlePageChange"
         :current-page="query.page"
+        :page-sizes="[10, 20, 50, 100]"
         :page-size="query.page_size"
         :total="total"
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
       />
     </div>
   </div>
@@ -68,6 +70,19 @@ export default {
   methods: {
     statusType(s) {
       return { pending: 'warning', confirmed: '', completed: 'success', cancelled: 'info' }[s] || 'info'
+    },
+    handleSearch() {
+      this.query.page = 1
+      this.loadData()
+    },
+    handlePageChange(page) {
+      this.query.page = page
+      this.loadData()
+    },
+    handleSizeChange(size) {
+      this.query.page_size = size
+      this.query.page = 1
+      this.loadData()
     },
     async loadData() {
       this.loading = true

@@ -1,7 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy import or_
@@ -12,7 +12,13 @@ from app.database import get_db
 from app.models.models import Appointment, SystemConfig, User
 from app.schemas.common import ConfigUpdateRequest, UserCreateRequest, UserUpdateRequest
 from app.services.employee_import import normalize_employee_id
-from app.utils.response import ApiException
+from app.services.user_excel import (
+    build_template_workbook,
+    build_users_workbook,
+    import_users_from_rows,
+    parse_users_from_excel,
+)
+from app.utils.response import ApiException, content_disposition_attachment
 
 router = APIRouter(prefix='/admin', tags=['管理后台'])
 
@@ -22,7 +28,7 @@ def list_users(
     keyword: str = Query(default=''),
     role: str = Query(default=''),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
@@ -116,6 +122,76 @@ def delete_user(
     return {'code': 0, 'message': '已停用'}
 
 
+def _users_export_query(db: Session, keyword: str, role: str):
+    query = db.query(User)
+    if keyword.strip():
+        kw = f'%{keyword.strip()}%'
+        query = query.filter(or_(User.employee_id.like(kw), User.name.like(kw)))
+    if role.strip():
+        query = query.filter(User.role == role.strip())
+    return query.order_by(User.id.desc())
+
+
+@router.get('/users/export')
+def export_users(
+    keyword: str = Query(default=''),
+    role: str = Query(default=''),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    users = _users_export_query(db, keyword, role).all()
+    output = build_users_workbook(users)
+    filename = f'用户列表_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={'Content-Disposition': content_disposition_attachment(filename, 'users_export.xlsx')},
+    )
+
+
+@router.get('/users/import-template')
+def download_user_import_template(_: User = Depends(require_admin)):
+    output = build_template_workbook()
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={
+            'Content-Disposition': content_disposition_attachment('用户导入模板.xlsx', 'user_import_template.xlsx')
+        },
+    )
+
+
+@router.post('/users/import')
+async def import_users(
+    mode: str = Query(default='update', description='update=更新(默认), overwrite=覆盖'),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    if mode not in ('update', 'overwrite'):
+        raise ApiException(400, 'mode 须为 update 或 overwrite')
+    filename = (file.filename or '').lower()
+    if not filename.endswith(('.xlsx', '.xlsm')):
+        raise ApiException(400, '请上传 .xlsx 格式的 Excel 文件')
+
+    content = await file.read()
+    if not content:
+        raise ApiException(400, '文件为空')
+
+    rows, parse_errors = parse_users_from_excel(content)
+    if not rows and parse_errors:
+        raise ApiException(400, parse_errors[0])
+
+    result = import_users_from_rows(db, rows, mode)
+    result.errors.extend(parse_errors)
+
+    return {
+        'code': 0,
+        'message': '导入完成',
+        'data': result.to_dict(),
+    }
+
+
 @router.get('/appointments')
 def list_appointments(
     keyword: str = Query(default=''),
@@ -123,7 +199,7 @@ def list_appointments(
     start_date: str = Query(default=''),
     end_date: str = Query(default=''),
     page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=20, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
@@ -201,7 +277,7 @@ def export_appointments(
     return StreamingResponse(
         output,
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        headers={'Content-Disposition': content_disposition_attachment(filename, 'appointments_export.xlsx')},
     )
 
 
