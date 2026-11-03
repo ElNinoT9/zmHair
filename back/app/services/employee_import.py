@@ -21,6 +21,27 @@ def normalize_employee_id(raw: str) -> str:
     return digits
 
 
+def parse_employee_id_from_cell(raw) -> str:
+    """Excel 单元格可能是 int/float（如 94189 或 94189.0），避免 str 变成 941890。"""
+    if raw is None:
+        return ''
+    if isinstance(raw, bool):
+        return ''
+    if isinstance(raw, float):
+        if raw != raw:  # NaN
+            return ''
+        if raw == int(raw):
+            raw = int(raw)
+    if isinstance(raw, int):
+        return normalize_employee_id(str(raw)) or str(raw).zfill(6)
+    text = str(raw).strip()
+    if not text:
+        return ''
+    if re.fullmatch(r'\d+\.0+', text):
+        text = text.split('.', 1)[0]
+    return normalize_employee_id(text) or text
+
+
 def extract_employee_id_from_row(row: dict) -> str:
     code = row.get('人员编码') or row.get('employee_id') or ''
     return normalize_employee_id(str(code))

@@ -179,10 +179,15 @@ async def import_users(
         raise ApiException(400, '文件为空')
 
     rows, parse_errors = parse_users_from_excel(content)
-    if not rows and parse_errors:
-        raise ApiException(400, parse_errors[0])
+    if not rows:
+        msg = parse_errors[0] if parse_errors else '未解析到有效数据，请使用系统「下载模板」并填写「工号」「姓名」列'
+        raise ApiException(400, msg)
 
-    result = import_users_from_rows(db, rows, mode)
+    try:
+        result = import_users_from_rows(db, rows, mode)
+    except Exception as exc:
+        db.rollback()
+        raise ApiException(500, f'导入失败：{exc}') from exc
     result.errors.extend(parse_errors)
 
     return {

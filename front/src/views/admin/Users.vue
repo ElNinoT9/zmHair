@@ -137,8 +137,13 @@
         </ul>
       </div>
       <div slot="footer">
-        <el-button @click="importVisible = false">关闭</el-button>
-        <el-button type="primary" :loading="importing" :disabled="!importFile" @click="handleImport">开始导入</el-button>
+        <template v-if="importResult">
+          <el-button type="primary" @click="importVisible = false">确认</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="importVisible = false">取消</el-button>
+          <el-button type="primary" :loading="importing" :disabled="!importFile" @click="handleImport">开始导入</el-button>
+        </template>
       </div>
     </el-dialog>
   </div>
@@ -282,12 +287,16 @@ export default {
         const form = new FormData()
         form.append('file', this.importFile)
         const res = await request.post(`/admin/users/import?mode=${this.importMode}`, form, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          timeout: 120000
         })
         this.importResult = res.data
         const d = res.data
         this.$message.success(`导入完成：新增 ${d.created}，更新 ${d.updated}`)
         this.loadData()
+      } catch (e) {
+        if (!e.silent) {
+          // 错误文案由 request 拦截器弹出
+        }
       } finally {
         this.importing = false
       }

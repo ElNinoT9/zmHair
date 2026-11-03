@@ -9,7 +9,7 @@ from openpyxl import Workbook, load_workbook
 from sqlalchemy.orm import Session
 
 from app.models.models import User
-from app.services.employee_import import normalize_employee_id
+from app.services.employee_import import parse_employee_id_from_cell
 
 USER_SHEET_HEADERS = ['工号', '姓名', '角色', '理发师', '状态']
 
@@ -122,7 +122,10 @@ def _cell(row: tuple, col_map: dict[str, int], *names: str):
 
 
 def parse_users_from_excel(content: bytes) -> tuple[list[ParsedUserRow], list[str]]:
-    wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    try:
+        wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+    except Exception as exc:
+        return [], [f'无法读取 Excel，请使用 .xlsx 模板：{exc}']
     ws = wb.active
     rows_iter = ws.iter_rows(values_only=True)
     try:
@@ -143,7 +146,7 @@ def parse_users_from_excel(content: bytes) -> tuple[list[ParsedUserRow], list[st
 
         raw_id = _cell(row, col_map, '工号')
         raw_name = _cell(row, col_map, '姓名')
-        employee_id = normalize_employee_id(str(raw_id or '')) or str(raw_id or '').strip()
+        employee_id = parse_employee_id_from_cell(raw_id)
         name = str(raw_name or '').strip()
 
         if not employee_id or not name:

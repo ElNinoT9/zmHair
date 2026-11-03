@@ -26,6 +26,16 @@ request.interceptors.request.use(config => {
   return config
 })
 
+function formatErrorMessage(data) {
+  if (!data) return '网络错误'
+  if (typeof data.message === 'string' && data.message) return data.message
+  if (typeof data.detail === 'string' && data.detail) return data.detail
+  if (Array.isArray(data.detail)) {
+    return data.detail.map(d => d.msg || d.message || JSON.stringify(d)).join('；') || '请求参数错误'
+  }
+  return '网络错误'
+}
+
 request.interceptors.response.use(
   response => {
     const res = response.data
@@ -50,7 +60,7 @@ request.interceptors.response.use(
   error => {
     const isMobile = window.location.pathname.startsWith('/m')
     const code = error.response?.data?.code
-    const msg = error.response?.data?.message || error.response?.data?.detail || '网络错误'
+    const msg = formatErrorMessage(error.response?.data)
     if (code === 401 || error.response?.status === 401) {
       redirectToLogin()
       return Promise.reject(Object.assign(new Error(msg), { silent: true }))
