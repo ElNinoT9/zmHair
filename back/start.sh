@@ -74,8 +74,12 @@ PY=$(venv_python) || {
 }
 
 echo "[2/3] 安装依赖..."
+REQ_FILE="$ROOT/requirements.txt"
+if [ -f "$ROOT/../requirements.txt" ]; then
+  REQ_FILE="$ROOT/../requirements.txt"
+fi
 "$PY" -m pip install --upgrade pip -q
-"$PY" -m pip install -r requirements.txt -q
+"$PY" -m pip install -r "$REQ_FILE" -q
 
 if [ ! -f ".env" ] && [ -f ".env.example" ]; then
   cp .env.example .env
