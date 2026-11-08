@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
@@ -9,6 +10,7 @@ from app.models.models import Appointment, BarberSchedule, Notification, SystemC
 from app.models.models import DEFAULT_TIME_PERIOD, TIME_PERIODS, VALID_TIME_PERIODS
 from app.schemas.common import AppointmentCreateRequest, AppointmentStatusRequest, ScheduleUpdateRequest
 from app.utils.response import ApiException
+from app.utils.sort import name_az_key
 
 router = APIRouter(prefix='/mobile', tags=['移动端'])
 
@@ -20,8 +22,32 @@ def get_config_value(db: Session, key: str, default: str = '') -> str:
 
 @router.get('/barbers')
 def list_barbers(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    barbers = db.query(User).filter_by(is_barber=True, is_active=True).all()
-    return {'code': 0, 'data': [b.to_dict() for b in barbers]}
+    today = datetime.now().date()
+    earliest_by_barber = (
+        db.query(
+            BarberSchedule.barber_id,
+            func.min(BarberSchedule.service_date).label('earliest_date'),
+        )
+        .filter(BarberSchedule.service_date >= today)
+        .group_by(BarberSchedule.barber_id)
+        .subquery()
+    )
+    rows = (
+        db.query(User, earliest_by_barber.c.earliest_date)
+        .filter_by(is_barber=True, is_active=True)
+        .outerjoin(earliest_by_barber, User.id == earliest_by_barber.c.barber_id)
+        .all()
+    )
+
+    def barber_sort_key(item):
+        user, earliest = item
+        name_key = name_az_key(user.name)
+        if earliest is None:
+            return (1, '', name_key)
+        return (0, earliest, name_key)
+
+    rows.sort(key=barber_sort_key)
+    return {'code': 0, 'data': [user.to_dict() for user, _ in rows]}
 
 
 @router.get('/barbers/{barber_id}/dates')

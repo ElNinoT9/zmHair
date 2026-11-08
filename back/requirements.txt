@@ -8,3 +8,4 @@ Werkzeug==2.3.7
 openpyxl==3.1.2
 python-multipart==0.0.20
 psycopg2-binary==2.9.10
+pypinyin==0.53.0
