@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "cd front && npm install && npm run build",
-    "vercel-build": "python3 -c \"from pypinyin import lazy_pinyin; lazy_pinyin('测')\" && cd front && npm run build"
+    "vercel-build": "cd front && npm install && npm run build"
   },
   "engines": {
     "node": "24.x"

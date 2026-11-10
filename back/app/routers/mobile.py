@@ -10,7 +10,6 @@ from app.models.models import Appointment, BarberSchedule, Notification, SystemC
 from app.models.models import DEFAULT_TIME_PERIOD, TIME_PERIODS, VALID_TIME_PERIODS
 from app.schemas.common import AppointmentCreateRequest, AppointmentStatusRequest, ScheduleUpdateRequest
 from app.utils.response import ApiException
-from app.utils.sort import name_az_key
 
 router = APIRouter(prefix='/mobile', tags=['移动端'])
 
@@ -32,22 +31,18 @@ def list_barbers(db: Session = Depends(get_db), _: User = Depends(get_current_us
         .group_by(BarberSchedule.barber_id)
         .subquery()
     )
-    rows = (
-        db.query(User, earliest_by_barber.c.earliest_date)
+    barbers = (
+        db.query(User)
         .filter_by(is_barber=True, is_active=True)
         .outerjoin(earliest_by_barber, User.id == earliest_by_barber.c.barber_id)
+        .order_by(
+            earliest_by_barber.c.earliest_date.is_(None),
+            earliest_by_barber.c.earliest_date.asc(),
+            User.name.asc(),
+        )
         .all()
     )
-
-    def barber_sort_key(item):
-        user, earliest = item
-        name_key = name_az_key(user.name)
-        if earliest is None:
-            return (1, '', name_key)
-        return (0, earliest, name_key)
-
-    rows.sort(key=barber_sort_key)
-    return {'code': 0, 'data': [user.to_dict() for user, _ in rows]}
+    return {'code': 0, 'data': [b.to_dict() for b in barbers]}
 
 
 @router.get('/barbers/{barber_id}/dates')
