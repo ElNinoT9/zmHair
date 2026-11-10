@@ -53,6 +53,8 @@
 import request from '@/utils/request'
 import { Toast, Dialog } from 'vant'
 
+const LAST_BARBER_KEY_PREFIX = 'zmhair_book_barber_'
+
 export default {
   name: 'MobileBook',
   data() {
@@ -67,17 +69,38 @@ export default {
   },
   created() {
     this.loadBarbers()
-    if (this.$route.query.barber_id) {
-      this.selectBarber(Number(this.$route.query.barber_id))
-    }
   },
   methods: {
+    lastBarberStorageKey() {
+      const eid = this.$store.state.user && this.$store.state.user.employee_id
+      return LAST_BARBER_KEY_PREFIX + (eid || 'default')
+    },
     async loadBarbers() {
       const res = await request.get('/mobile/barbers')
       this.barbers = res.data
+      await this.applyInitialBarber()
+    },
+    async applyInitialBarber() {
+      if (!this.barbers.length) return
+      const queryId = this.$route.query.barber_id ? Number(this.$route.query.barber_id) : null
+      let targetId = null
+      if (queryId && this.barbers.some(b => b.id === queryId)) {
+        targetId = queryId
+      } else {
+        const saved = localStorage.getItem(this.lastBarberStorageKey())
+        const savedId = saved ? Number(saved) : null
+        if (savedId && this.barbers.some(b => b.id === savedId)) {
+          targetId = savedId
+        } else {
+          targetId = this.barbers[0].id
+        }
+      }
+      if (this.selectedBarber === targetId && this.availableDates.length) return
+      await this.selectBarber(targetId)
     },
     async selectBarber(id) {
       this.selectedBarber = id
+      localStorage.setItem(this.lastBarberStorageKey(), String(id))
       this.selectedDate = ''
       const res = await request.get(`/mobile/barbers/${id}/dates`)
       this.availableDates = res.data

@@ -7,11 +7,22 @@ Vue.use(Vuex)
 const TOKEN_KEY = 'zmhair_token'
 const USER_KEY = 'zmhair_user'
 const SAVED_EMPLOYEE_KEY = 'zmhair_saved_employee_id'
+const MOBILE_VIEW_KEY_PREFIX = 'zmhair_mobile_view_'
+
+function resolveMobileViewMode(user) {
+  if (!user || !user.is_barber) return 'employee'
+  const saved = localStorage.getItem(MOBILE_VIEW_KEY_PREFIX + user.employee_id)
+  if (saved === 'employee' || saved === 'barber') return saved
+  return 'barber'
+}
+
+const storedUser = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
 
 export default new Vuex.Store({
   state: {
     token: localStorage.getItem(TOKEN_KEY) || '',
-    user: JSON.parse(localStorage.getItem(USER_KEY) || 'null'),
+    user: storedUser,
+    mobileViewMode: resolveMobileViewMode(storedUser),
     autoLoginPending: false
   },
   mutations: {
@@ -33,12 +44,21 @@ export default new Vuex.Store({
     },
     SET_AUTO_LOGIN_PENDING(state, pending) {
       state.autoLoginPending = pending
+    },
+    SET_MOBILE_VIEW_MODE(state, mode) {
+      const next = mode === 'barber' ? 'barber' : 'employee'
+      state.mobileViewMode = next
+      const eid = state.user && state.user.employee_id
+      if (eid) {
+        localStorage.setItem(MOBILE_VIEW_KEY_PREFIX + eid, next)
+      }
     }
   },
   actions: {
     login({ commit }, { token, user }) {
       commit('SET_TOKEN', token)
       commit('SET_USER', user)
+      commit('SET_MOBILE_VIEW_MODE', resolveMobileViewMode(user))
       if (user && user.employee_id) {
         localStorage.setItem(SAVED_EMPLOYEE_KEY, user.employee_id)
       }
@@ -46,7 +66,12 @@ export default new Vuex.Store({
     logout({ commit }) {
       commit('SET_TOKEN', '')
       commit('SET_USER', null)
+      commit('SET_MOBILE_VIEW_MODE', 'employee')
       localStorage.removeItem(SAVED_EMPLOYEE_KEY)
+    },
+    setMobileViewMode({ commit, getters }, mode) {
+      if (mode === 'barber' && !getters.isBarberCapable) return
+      commit('SET_MOBILE_VIEW_MODE', mode)
     },
     async autoLogin({ commit, dispatch, state }) {
       const savedId = localStorage.getItem(SAVED_EMPLOYEE_KEY)
@@ -78,7 +103,9 @@ export default new Vuex.Store({
   },
   getters: {
     isAdmin: state => state.user && state.user.role === 'admin',
-    isBarber: state => state.user && state.user.is_barber,
+    isBarberCapable: state => !!(state.user && state.user.is_barber),
+    isBarber: state => !!(state.user && state.user.is_barber && state.mobileViewMode === 'barber'),
+    defaultMobileRoute: (_state, getters) => (getters.isBarber ? '/m/barber' : '/m/book'),
     isLoggedIn: state => !!state.token,
     savedEmployeeId: () => localStorage.getItem(SAVED_EMPLOYEE_KEY) || ''
   }

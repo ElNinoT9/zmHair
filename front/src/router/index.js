@@ -82,7 +82,6 @@ async function ensureMobileLogin() {
 router.beforeEach(async (to, from, next) => {
   const isLoggedIn = store.getters.isLoggedIn
   const isAdmin = store.getters.isAdmin
-  const isBarber = store.getters.isBarber
 
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
@@ -93,14 +92,14 @@ router.beforeEach(async (to, from, next) => {
   if (isMobileGuest && !isLoggedIn) {
     const ok = await ensureMobileLogin()
     if (ok) {
-      next(store.getters.isBarber ? '/m/barber' : '/m/book')
+      next(store.getters.defaultMobileRoute)
       return
     }
   }
 
   if (isGuest) {
     if (isLoggedIn && to.path === '/m/login' && !isAdmin) {
-      next(store.getters.isBarber ? '/m/barber' : '/m/book')
+      next(store.getters.defaultMobileRoute)
       return
     }
     if (isLoggedIn && to.path === '/admin/login' && isAdmin) {
@@ -117,7 +116,7 @@ router.beforeEach(async (to, from, next) => {
       return
     }
     if (!isAdmin) {
-      next(store.getters.isBarber ? '/m/barber' : '/m/book')
+      next(store.getters.defaultMobileRoute)
       return
     }
   }

@@ -1,24 +1,32 @@
 <template>
   <div class="mobile-layout">
     <div class="mobile-topbar" v-if="user" :class="{ 'barber-topbar': isBarber }">
-      <div class="topbar-user">
-        <span class="topbar-name">
-          {{ user.name }}
-          <van-tag v-if="isBarber" type="primary" size="medium" class="role-tag">理发师</van-tag>
-        </span>
-        <span class="topbar-id">工号 {{ user.employee_id }}</span>
+      <div class="topbar-identity">
+        <span class="topbar-name">{{ user.name }}</span>
+        <span class="topbar-dot">·</span>
+        <span class="topbar-id">{{ user.employee_id }}</span>
       </div>
-      <van-button
-        size="small"
-        round
-        plain
-        type="danger"
-        icon="exchange"
-        class="switch-btn"
-        @click="handleSwitchUser"
-      >
-        切换用户
-      </van-button>
+      <div class="topbar-actions">
+        <div v-if="isBarberCapable" class="role-switch">
+          <button
+            type="button"
+            class="role-pill"
+            :class="{ active: !isBarber }"
+            @click="switchViewMode('employee')"
+          >
+            员工
+          </button>
+          <button
+            type="button"
+            class="role-pill"
+            :class="{ active: isBarber }"
+            @click="switchViewMode('barber')"
+          >
+            理发师
+          </button>
+        </div>
+        <button type="button" class="switch-user-btn" @click="handleSwitchUser">换人</button>
+      </div>
     </div>
 
     <div class="mobile-body" :class="{ 'has-topbar': !!user }">
@@ -57,7 +65,7 @@ export default {
   },
   computed: {
     ...mapState(['user']),
-    ...mapGetters(['isBarber']),
+    ...mapGetters(['isBarber', 'isBarberCapable', 'defaultMobileRoute']),
     pendingBadge() {
       return this.pendingCount > 0 ? String(this.pendingCount) : ''
     },
@@ -82,10 +90,14 @@ export default {
       try {
         const res = await request.get('/auth/profile')
         const user = res.data
+        const wasBarberMode = this.isBarber
         await this.$store.dispatch('login', {
           token: this.$store.state.token,
           user
         })
+        if (wasBarberMode && !this.isBarberCapable) {
+          this.$router.replace('/m/book')
+        }
       } catch (e) { /* ignore */ }
     },
     async loadPendingCount() {
@@ -94,11 +106,22 @@ export default {
         this.pendingCount = res.data.length
       } catch (e) { /* ignore */ }
     },
+    switchViewMode(mode) {
+      if (mode === 'barber' && !this.isBarberCapable) return
+      const goingBarber = mode === 'barber'
+      if (goingBarber === this.isBarber) return
+      this.$store.dispatch('setMobileViewMode', mode)
+      const target = goingBarber ? '/m/barber' : '/m/book'
+      if (this.$route.path !== target) {
+        this.$router.replace(target)
+      }
+      if (goingBarber) this.loadPendingCount()
+    },
     handleSwitchUser() {
       Dialog.confirm({
-        title: '切换用户',
-        message: '退出当前账号，以便其他人输入工号预约',
-        confirmButtonText: '切换用户',
+        title: '换人登录',
+        message: '退出当前账号，以便其他人输入工号',
+        confirmButtonText: '换人',
         confirmButtonColor: '#F56C6C'
       }).then(() => {
         this.$store.dispatch('logout')
@@ -123,7 +146,8 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  gap: 10px;
+  padding: 8px 12px;
   background: #fff;
   border-bottom: 1px solid #ebeef5;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -131,35 +155,106 @@ export default {
   &.barber-topbar {
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     border-bottom: none;
-    .topbar-name, .topbar-id { color: #fff; }
-    .role-tag { margin-left: 6px; vertical-align: middle; }
+    .topbar-name,
+    .topbar-id,
+    .topbar-dot { color: #fff; }
+    .topbar-id { opacity: 0.88; }
+    .topbar-dot { opacity: 0.7; }
+    .role-switch {
+      background: rgba(0, 0, 0, 0.22);
+    }
+    .role-pill {
+      color: rgba(255, 255, 255, 0.95);
+      font-weight: 500;
+      &.active {
+        background: #fff;
+        color: #5b6fd8;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+      }
+    }
+    .switch-user-btn {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.55);
+      background: rgba(255, 255, 255, 0.12);
+    }
   }
 }
 
-.topbar-user {
+.topbar-identity {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 4px;
   min-width: 0;
+  flex: 1;
 }
 
 .topbar-name {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-dot {
+  font-size: 12px;
+  color: #c0c4cc;
+  flex-shrink: 0;
 }
 
 .topbar-id {
   font-size: 12px;
   color: #909399;
-  margin-top: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.switch-btn {
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
-  font-weight: 500;
+}
+
+.role-switch {
+  display: inline-flex;
+  padding: 2px;
+  background: #f0f2f5;
+  border-radius: 14px;
+  gap: 2px;
+}
+
+.role-pill {
+  border: none;
+  padding: 3px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 12px;
+  color: #606266;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  &.active {
+    background: #fff;
+    color: #409eff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+}
+
+.switch-user-btn {
+  border: 1px solid #f56c6c;
+  color: #f56c6c;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .mobile-body.has-topbar {
-  min-height: calc(100vh - 50px - 54px);
+  min-height: calc(100vh - 50px - 44px);
 }
 </style>

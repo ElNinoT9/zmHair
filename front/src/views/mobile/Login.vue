@@ -60,7 +60,7 @@ export default {
     async created() {
     const ok = await this.$store.dispatch('autoLogin')
     if (ok) {
-      this.$router.replace(this.$store.getters.isBarber ? '/m/barber' : '/m/book')
+      this.$router.replace(this.$store.getters.defaultMobileRoute)
       return
     }
     this.autoChecking = false
@@ -98,8 +98,7 @@ export default {
           return
         }
         await this.$store.dispatch('login', { token: res.data.token, user: res.data.user })
-        const target = res.data.user.is_barber ? '/m/barber' : '/m/book'
-        this.$router.replace(target)
+        this.$router.replace(this.$store.getters.defaultMobileRoute)
       } finally {
         this.loading = false
       }
