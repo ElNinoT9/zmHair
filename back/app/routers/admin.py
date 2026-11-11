@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.auth.dependencies import require_admin
 from app.database import get_db
-from app.models.models import Appointment, SystemConfig, User
+from app.models.models import Appointment, BarberSchedule, Notification, SystemConfig, User
 from app.schemas.common import ConfigUpdateRequest, UserCreateRequest, UserUpdateRequest
 from app.services.employee_import import normalize_employee_id
+from app.services.user_roles import VALID_USER_ROLES, apply_role_policy
 from app.services.user_excel import (
     build_template_workbook,
     build_users_workbook,
@@ -27,6 +28,7 @@ router = APIRouter(prefix='/admin', tags=['管理后台'])
 def list_users(
     keyword: str = Query(default=''),
     role: str = Query(default=''),
+    is_admin: str = Query(default=''),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -38,6 +40,11 @@ def list_users(
         query = query.filter(or_(User.employee_id.like(kw), User.name.like(kw)))
     if role.strip():
         query = query.filter(User.role == role.strip())
+    admin_flag = is_admin.strip().lower()
+    if admin_flag == 'true':
+        query = query.filter(User.role == 'admin')
+    elif admin_flag == 'false':
+        query = query.filter(User.role != 'admin')
 
     total = query.count()
     items = query.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
@@ -64,13 +71,18 @@ def create_user(
         raise ApiException(400, '工号和姓名不能为空')
     if db.query(User).filter_by(employee_id=employee_id).first():
         raise ApiException(400, '工号已存在')
-
+    role = (body.role or 'employee').strip()
+    if role not in VALID_USER_ROLES:
+        raise ApiException(400, '无效的角色')
     user = User(
         employee_id=employee_id,
         name=name,
-        role=body.role,
+        role=role,
         is_barber=body.is_barber,
     )
+    apply_role_policy(user)
+    if user.role == 'admin':
+        user.is_barber = False
     user.set_password(body.password or employee_id)
     db.add(user)
     db.commit()
@@ -92,17 +104,60 @@ def update_user(
     if body.name is not None:
         user.name = body.name.strip()
     if body.role is not None:
-        user.role = body.role
+        role = body.role.strip()
+        if role not in VALID_USER_ROLES:
+            raise ApiException(400, '无效的角色')
+        if user.role == 'admin' and role != 'admin':
+            raise ApiException(400, '不能修改管理员角色')
+        user.role = role
     if body.is_barber is not None:
         user.is_barber = body.is_barber
     if body.is_active is not None:
         user.is_active = body.is_active
     if body.password:
         user.set_password(body.password)
+    apply_role_policy(user)
+    if user.role == 'admin':
+        user.is_barber = False
 
     db.commit()
     db.refresh(user)
     return {'code': 0, 'message': '更新成功', 'data': user.to_dict()}
+
+
+def _parse_employee_roles(raw: str) -> list[str]:
+    allowed = {'employee', 'waixie'}
+    roles = [p.strip() for p in (raw or '').split(',') if p.strip()]
+    return [r for r in roles if r in allowed]
+
+
+def _appointments_base_query(
+    db: Session,
+    *,
+    keyword: str,
+    status: str,
+    start_date: str,
+    end_date: str,
+    employee_roles: str,
+):
+    query = db.query(Appointment)
+    roles = _parse_employee_roles(employee_roles)
+    employee = aliased(User)
+    need_employee_join = bool(keyword.strip()) or bool(roles)
+    if need_employee_join:
+        query = query.join(employee, Appointment.employee_id == employee.id)
+        if keyword.strip():
+            kw = f'%{keyword.strip()}%'
+            query = query.filter(or_(employee.name.like(kw), employee.employee_id.like(kw)))
+        if roles:
+            query = query.filter(employee.role.in_(roles))
+    if status.strip():
+        query = query.filter(Appointment.status == status.strip())
+    if start_date.strip():
+        query = query.filter(Appointment.appointment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date.strip():
+        query = query.filter(Appointment.appointment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    return query
 
 
 @router.delete('/users/{user_id}')
@@ -120,6 +175,37 @@ def delete_user(
     user.is_active = False
     db.commit()
     return {'code': 0, 'message': '已停用'}
+
+
+@router.post('/users/{user_id}/purge')
+def purge_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """从数据库永久删除用户（不可恢复）。存在预约记录时不允许删除。"""
+    user = db.get(User, user_id)
+    if not user:
+        raise ApiException(404, '用户不存在')
+    if user.role == 'admin':
+        raise ApiException(400, '不能删除管理员账号')
+
+    apt_count = (
+        db.query(Appointment)
+        .filter(or_(Appointment.employee_id == user_id, Appointment.barber_id == user_id))
+        .count()
+    )
+    if apt_count > 0:
+        raise ApiException(
+            400,
+            f'该用户关联 {apt_count} 条预约记录，无法永久删除，请使用「停用」',
+        )
+
+    db.query(BarberSchedule).filter_by(barber_id=user_id).delete()
+    db.query(Notification).filter_by(user_id=user_id).delete()
+    db.delete(user)
+    db.commit()
+    return {'code': 0, 'message': '用户已永久删除'}
 
 
 def _users_export_query(db: Session, keyword: str, role: str):
@@ -203,23 +289,20 @@ def list_appointments(
     status: str = Query(default=''),
     start_date: str = Query(default=''),
     end_date: str = Query(default=''),
+    employee_roles: str = Query(default='employee'),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(Appointment)
-    if keyword.strip():
-        kw = f'%{keyword.strip()}%'
-        query = query.join(User, Appointment.employee_id == User.id).filter(
-            or_(User.name.like(kw), User.employee_id.like(kw))
-        )
-    if status.strip():
-        query = query.filter(Appointment.status == status.strip())
-    if start_date.strip():
-        query = query.filter(Appointment.appointment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-    if end_date.strip():
-        query = query.filter(Appointment.appointment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    query = _appointments_base_query(
+        db,
+        keyword=keyword,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        employee_roles=employee_roles,
+    )
 
     total = query.count()
     items = (
@@ -241,19 +324,22 @@ def list_appointments(
 
 @router.get('/appointments/export')
 def export_appointments(
+    keyword: str = Query(default=''),
     status: str = Query(default=''),
     start_date: str = Query(default=''),
     end_date: str = Query(default=''),
+    employee_roles: str = Query(default='employee'),
     db: Session = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    query = db.query(Appointment)
-    if status.strip():
-        query = query.filter(Appointment.status == status.strip())
-    if start_date.strip():
-        query = query.filter(Appointment.appointment_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-    if end_date.strip():
-        query = query.filter(Appointment.appointment_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    query = _appointments_base_query(
+        db,
+        keyword=keyword,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        employee_roles=employee_roles,
+    )
 
     appointments = query.order_by(Appointment.appointment_date.desc()).all()
 

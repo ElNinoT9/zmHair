@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
 import { quickLogin } from '@/utils/auth'
+import { ROLE_WAIXIE, canSwitchMobileView } from '@/constants/userRole'
 
 Vue.use(Vuex)
 
@@ -10,7 +11,9 @@ const SAVED_EMPLOYEE_KEY = 'zmhair_saved_employee_id'
 const MOBILE_VIEW_KEY_PREFIX = 'zmhair_mobile_view_'
 
 function resolveMobileViewMode(user) {
-  if (!user || !user.is_barber) return 'employee'
+  if (!user) return 'employee'
+  if (user.role === ROLE_WAIXIE) return 'barber'
+  if (!user.is_barber) return 'employee'
   const saved = localStorage.getItem(MOBILE_VIEW_KEY_PREFIX + user.employee_id)
   if (saved === 'employee' || saved === 'barber') return saved
   return 'barber'
@@ -69,8 +72,9 @@ export default new Vuex.Store({
       commit('SET_MOBILE_VIEW_MODE', 'employee')
       localStorage.removeItem(SAVED_EMPLOYEE_KEY)
     },
-    setMobileViewMode({ commit, getters }, mode) {
-      if (mode === 'barber' && !getters.isBarberCapable) return
+    setMobileViewMode({ commit, getters, state }, mode) {
+      if (!canSwitchMobileView(state.user)) return
+      if (mode === 'barber' && !state.user.is_barber) return
       commit('SET_MOBILE_VIEW_MODE', mode)
     },
     async autoLogin({ commit, dispatch, state }) {
@@ -103,8 +107,14 @@ export default new Vuex.Store({
   },
   getters: {
     isAdmin: state => state.user && state.user.role === 'admin',
-    isBarberCapable: state => !!(state.user && state.user.is_barber),
-    isBarber: state => !!(state.user && state.user.is_barber && state.mobileViewMode === 'barber'),
+    isWaixie: state => !!(state.user && state.user.role === ROLE_WAIXIE),
+    isBarberCapable: state => canSwitchMobileView(state.user),
+    isBarber: state => {
+      const user = state.user
+      if (!user) return false
+      if (user.role === ROLE_WAIXIE) return true
+      return !!(user.is_barber && state.mobileViewMode === 'barber')
+    },
     defaultMobileRoute: (_state, getters) => (getters.isBarber ? '/m/barber' : '/m/book'),
     isLoggedIn: state => !!state.token,
     savedEmployeeId: () => localStorage.getItem(SAVED_EMPLOYEE_KEY) || ''

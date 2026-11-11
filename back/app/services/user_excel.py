@@ -10,11 +10,19 @@ from sqlalchemy.orm import Session
 
 from app.models.models import User
 from app.services.employee_import import parse_employee_id_from_cell
+from app.services.user_roles import apply_role_policy
 
 USER_SHEET_HEADERS = ['工号', '姓名', '角色', '理发师', '状态']
 
-ROLE_LABEL = {'admin': '管理员', 'employee': '员工'}
-ROLE_PARSE = {'管理员': 'admin', 'admin': 'admin', '员工': 'employee', 'employee': 'employee'}
+ROLE_LABEL = {'admin': '管理员', 'employee': '员工', 'waixie': '外协'}
+ROLE_PARSE = {
+    '管理员': 'admin',
+    'admin': 'admin',
+    '员工': 'employee',
+    'employee': 'employee',
+    '外协': 'waixie',
+    'waixie': 'waixie',
+}
 
 
 def _bool_label(value: bool) -> str:
@@ -71,6 +79,7 @@ def build_template_workbook() -> BytesIO:
     ws.append(USER_SHEET_HEADERS)
     ws.append(['094001', '张三', '员工', '否', '正常'])
     ws.append(['094002', '李四', '员工', '是', '正常'])
+    ws.append(['094003', '王五', '外协', '是', '正常'])
     output = BytesIO()
     wb.save(output)
     output.seek(0)
@@ -213,6 +222,7 @@ def import_users_from_rows(db: Session, rows: list[ParsedUserRow], mode: str) ->
                 user.role = row.role
                 user.is_barber = row.is_barber
                 user.is_active = row.is_active
+            apply_role_policy(user)
             result.updated += 1
         else:
             if row.role == 'admin':
@@ -226,6 +236,7 @@ def import_users_from_rows(db: Session, rows: list[ParsedUserRow], mode: str) ->
                 is_barber=row.is_barber,
                 is_active=row.is_active,
             )
+            apply_role_policy(user)
             user.set_password(row.employee_id)
             db.add(user)
             result.created += 1

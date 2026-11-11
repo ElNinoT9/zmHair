@@ -7,8 +7,14 @@
         </el-form-item>
         <el-form-item>
           <el-select v-model="query.role" placeholder="角色" clearable style="width:120px">
-            <el-option label="管理员" value="admin" />
             <el-option label="员工" value="employee" />
+            <el-option label="外协" value="waixie" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-select v-model="query.is_admin" placeholder="管理员" clearable style="width:110px">
+            <el-option label="是" value="true" />
+            <el-option label="否" value="false" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -25,10 +31,17 @@
       <el-table :data="list" v-loading="loading" stripe>
         <el-table-column prop="employee_id" label="工号" width="120" />
         <el-table-column prop="name" label="姓名" width="120" />
-        <el-table-column prop="role" label="角色" width="100">
+        <el-table-column prop="role" label="角色" width="90">
           <template slot-scope="{ row }">
-            <el-tag :type="row.role === 'admin' ? 'danger' : 'info'" size="small">
-              {{ row.role === 'admin' ? '管理员' : '员工' }}
+            <el-tag :type="businessRoleTagType(row)" size="small">
+              {{ businessRoleLabel(row) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="管理员" width="80">
+          <template slot-scope="{ row }">
+            <el-tag :type="isAdminUser(row) ? 'danger' : 'info'" size="small">
+              {{ isAdminUser(row) ? '是' : '否' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -43,10 +56,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" />
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template slot-scope="{ row }">
             <el-button type="text" @click="openDialog(row)">编辑</el-button>
-            <el-button type="text" style="color:#F56C6C" @click="handleDelete(row)" v-if="row.role !== 'admin'">停用</el-button>
+            <template v-if="row.role !== 'admin'">
+              <el-button
+                v-if="row.is_active"
+                type="text"
+                style="color:#E6A23C"
+                @click="handleDeactivate(row)"
+              >
+                停用
+              </el-button>
+              <el-button type="text" style="color:#F56C6C" @click="handlePurge(row)">删除</el-button>
+            </template>
           </template>
         </el-table-column>
       </el-table>
@@ -71,13 +94,25 @@
           <el-input v-model="editForm.name" />
         </el-form-item>
         <el-form-item label="角色">
-          <el-select v-model="editForm.role" style="width:100%">
+          <el-select
+            v-model="editForm.business_role"
+            style="width:100%"
+            :disabled="editForm.is_admin"
+            @change="onRoleChange"
+          >
             <el-option label="员工" value="employee" />
-            <el-option label="管理员" value="admin" />
+            <el-option label="外协" value="waixie" />
           </el-select>
         </el-form-item>
+        <el-form-item label="管理员">
+          <el-switch v-model="editForm.is_admin" @change="onAdminChange" />
+        </el-form-item>
         <el-form-item label="理发师">
-          <el-switch v-model="editForm.is_barber" />
+          <el-switch
+            v-model="editForm.is_barber"
+            :disabled="editForm.is_admin || editForm.business_role === 'waixie'"
+          />
+          <span v-if="editForm.business_role === 'waixie'" class="field-tip">外协账号固定为理发师</span>
         </el-form-item>
         <el-form-item label="密码" v-if="!editForm.id">
           <el-input v-model="editForm.password" placeholder="默认为工号" />
@@ -151,6 +186,13 @@
 
 <script>
 import request from '@/utils/request'
+import {
+  roleLabel,
+  roleTagType,
+  isAdminUser,
+  businessRoleLabel,
+  businessRoleTagType
+} from '@/constants/userRole'
 
 export default {
   name: 'Users',
@@ -160,7 +202,7 @@ export default {
       saving: false,
       list: [],
       total: 0,
-      query: { keyword: '', role: '', page: 1, page_size: 20 },
+      query: { keyword: '', role: '', is_admin: '', page: 1, page_size: 20 },
       dialogVisible: false,
       editForm: {},
       editRules: {
@@ -176,6 +218,21 @@ export default {
   },
   created() { this.loadData() },
   methods: {
+    roleLabel,
+    roleTagType,
+    isAdminUser,
+    businessRoleLabel,
+    businessRoleTagType,
+    onRoleChange(role) {
+      if (role === 'waixie') this.editForm.is_barber = true
+    },
+    onAdminChange(isAdmin) {
+      if (isAdmin) {
+        this.editForm.is_barber = false
+      } else if (this.editForm.business_role === 'waixie') {
+        this.editForm.is_barber = true
+      }
+    },
     handleSearch() {
       this.query.page = 1
       this.loadData()
@@ -200,20 +257,50 @@ export default {
       }
     },
     openDialog(row) {
-      this.editForm = row
-        ? { ...row, password: '' }
-        : { employee_id: '', name: '', role: 'employee', is_barber: false, password: '', is_active: true }
+      if (row) {
+        const isAdmin = row.role === 'admin'
+        this.editForm = {
+          ...row,
+          password: '',
+          is_admin: isAdmin,
+          business_role: isAdmin ? 'employee' : row.role
+        }
+      } else {
+        this.editForm = {
+          employee_id: '',
+          name: '',
+          business_role: 'employee',
+          is_admin: false,
+          is_barber: false,
+          password: '',
+          is_active: true
+        }
+      }
       this.dialogVisible = true
+    },
+    buildSavePayload() {
+      const { business_role, is_admin, ...rest } = this.editForm
+      const payload = { ...rest }
+      delete payload.business_role
+      delete payload.is_admin
+      if (is_admin) {
+        payload.role = 'admin'
+        payload.is_barber = false
+      } else {
+        payload.role = business_role
+      }
+      return payload
     },
     handleSave() {
       this.$refs.editForm.validate(async valid => {
         if (!valid) return
         this.saving = true
         try {
+          const payload = this.buildSavePayload()
           if (this.editForm.id) {
-            await request.put(`/admin/users/${this.editForm.id}`, this.editForm)
+            await request.put(`/admin/users/${this.editForm.id}`, payload)
           } else {
-            await request.post('/admin/users', this.editForm)
+            await request.post('/admin/users', payload)
           }
           this.$message.success('保存成功')
           this.dialogVisible = false
@@ -223,10 +310,27 @@ export default {
         }
       })
     },
-    handleDelete(row) {
-      this.$confirm(`确定停用用户 ${row.name}？`, '提示').then(async () => {
+    handleDeactivate(row) {
+      this.$confirm(`确定停用用户「${row.name}」（工号 ${row.employee_id}）？停用后无法登录。`, '停用用户', {
+        type: 'warning'
+      }).then(async () => {
         await request.delete(`/admin/users/${row.id}`)
         this.$message.success('已停用')
+        this.loadData()
+      }).catch(() => {})
+    },
+    handlePurge(row) {
+      this.$confirm(
+        `永久删除用户「${row.name}」（工号 ${row.employee_id}）？删除后无法恢复；若存在预约记录将无法删除。`,
+        '永久删除',
+        {
+          type: 'warning',
+          confirmButtonText: '永久删除',
+          confirmButtonClass: 'el-button--danger'
+        }
+      ).then(async () => {
+        await request.post(`/admin/users/${row.id}/purge`)
+        this.$message.success('已删除')
         this.loadData()
       }).catch(() => {})
     },
@@ -252,7 +356,11 @@ export default {
       window.URL.revokeObjectURL(url)
     },
     async handleExport() {
-      const params = { keyword: this.query.keyword, role: this.query.role }
+      const params = {
+        keyword: this.query.keyword,
+        role: this.query.role,
+        is_admin: this.query.is_admin
+      }
       const name = `用户列表_${new Date().toISOString().slice(0, 10)}.xlsx`
       await this.downloadBlob('/admin/users/export', name, params)
       this.$message.success('导出成功')
@@ -309,4 +417,5 @@ export default {
 .toolbar { margin-bottom: 16px; }
 .import-result { font-size: 13px; color: #606266; }
 .import-result ul { margin: 8px 0 0; padding-left: 20px; color: #E6A23C; }
+.field-tip { margin-left: 8px; font-size: 12px; color: #909399; }
 </style>

@@ -5,6 +5,18 @@
         <el-form-item>
           <el-input v-model="query.keyword" placeholder="搜索预约人" clearable style="width:160px" />
         </el-form-item>
+        <el-form-item label="预约人角色">
+          <el-select
+            v-model="query.employee_roles"
+            multiple
+            collapse-tags
+            placeholder="角色"
+            style="width:220px"
+          >
+            <el-option label="员工" value="employee" />
+            <el-option label="外协" value="waixie" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <el-select v-model="query.status" placeholder="状态" clearable style="width:120px">
             <el-option label="待确认" value="pending" />
@@ -63,7 +75,7 @@ export default {
       list: [],
       total: 0,
       dateRange: null,
-      query: { keyword: '', status: '', page: 1, page_size: 20 }
+      query: { keyword: '', status: '', employee_roles: ['employee'], page: 1, page_size: 20 }
     }
   },
   created() { this.loadData() },
@@ -84,13 +96,23 @@ export default {
       this.query.page = 1
       this.loadData()
     },
-    async loadData() {
-      this.loading = true
-      const params = { ...this.query }
+    buildParams() {
+      const params = {
+        keyword: this.query.keyword,
+        status: this.query.status,
+        page: this.query.page,
+        page_size: this.query.page_size,
+        employee_roles: (this.query.employee_roles || []).join(',')
+      }
       if (this.dateRange) {
         params.start_date = this.dateRange[0]
         params.end_date = this.dateRange[1]
       }
+      return params
+    },
+    async loadData() {
+      this.loading = true
+      const params = this.buildParams()
       try {
         const res = await request.get('/admin/appointments', { params })
         this.list = res.data.list
@@ -100,11 +122,9 @@ export default {
       }
     },
     async handleExport() {
-      const params = { status: this.query.status }
-      if (this.dateRange) {
-        params.start_date = this.dateRange[0]
-        params.end_date = this.dateRange[1]
-      }
+      const params = this.buildParams()
+      delete params.page
+      delete params.page_size
       const res = await request.get('/admin/appointments/export', { params, responseType: 'blob' })
       const url = window.URL.createObjectURL(new Blob([res.data]))
       const link = document.createElement('a')
